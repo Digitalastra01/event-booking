@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+**/__pycache__/
+*.py[cod]
+
+# Virtual Environments
+.env
+.venv/
+env/
+venv/
+ENV/
+
+# IDEs
+.vscode/
+.idea/
+
+# Testing & Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Database
+*.db
+*.sqlite3
+test.db
+
+# Logs
+*.log
+traceback.txt
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Alembic
+alembic/versions/*.pyc
+
+# Dependencies
+*.lock
+uv.lock
+
+# Temporary / Project Specific
+check_event.py
+verify_booking_flow.py
+verify_email.py
+verify_*.py
