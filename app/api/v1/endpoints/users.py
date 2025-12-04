@@ -73,6 +73,16 @@ async def delete_user(
     if user.id == current_user.id:
         logger.warning("Organizer %s attempted to delete themselves", current_user.id)
         raise HTTPException(status_code=400, detail="Organizers cannot delete themselves")
+    if user.role == UserRole.ORGANIZER:
+        logger.warning(
+            "Organizer %s attempted to delete organizer %s",
+            current_user.id,
+            id,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Organizers cannot delete other organizers",
+        )
     user = await crud_user.remove(db=db, id=id)
     logger.info("User %s deleted by organizer %s", id, current_user.id)
     return user
