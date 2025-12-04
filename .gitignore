@@ -47,4 +47,5 @@ verify_*.py
 
 
 tests/
+pytest.ini/
 
