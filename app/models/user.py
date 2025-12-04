@@ -6,7 +6,6 @@ import uuid
 from typing import List
 
 class UserRole(str, enum.Enum):
-    ADMIN = "admin"
     ORGANIZER = "organizer"
     USER = "user"
 

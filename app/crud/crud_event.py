@@ -28,6 +28,10 @@ class CRUDEvent(CRUDBase[Event, EventCreate, EventUpdate]):
         )
         return result.scalars().all()
 
+    async def get_all(self, db: AsyncSession) -> List[Event]:
+        result = await db.execute(select(Event))
+        return result.scalars().all()
+
     async def decrease_capacity(
         self, db: AsyncSession, *, event_id: uuid.UUID, tickets: int
     ) -> Event:

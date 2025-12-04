@@ -1,5 +1,5 @@
 from typing import Any, List
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import update
 import uuid
@@ -9,11 +9,12 @@ from app.crud import booking as crud_booking
 from app.crud import event as crud_event
 from app.schemas.booking import Booking, BookingCreate, BookingUpdate
 from app.models.user import User, UserRole
-from app.models.booking import Booking as BookingModel
-from app.core.email import send_email
 from app.worker import send_email_task
+from app.utils.logger import get_logger
 
 router = APIRouter()
+
+logger = get_logger(__name__)
 
 @router.get("/", response_model=List[Booking])
 async def read_bookings(
@@ -25,9 +26,14 @@ async def read_bookings(
     """
     Retrieve bookings for current user.
     """
+    if current_user.role != UserRole.USER:
+        logger.warning("User %s with role %s attempted to list bookings", current_user.id, current_user.role)
+        raise HTTPException(status_code=403, detail="Only users can view their bookings")
+    logger.info("Listing bookings for user %s", current_user.id)
     bookings = await crud_booking.get_multi_by_user(
         db, user_id=current_user.id, skip=skip, limit=limit
     )
+    logger.info("Fetched %d bookings for user %s", len(bookings), current_user.id)
     return bookings
 
 @router.post("/", response_model=Booking)
@@ -41,14 +47,28 @@ async def create_booking(
     Create new booking.
     """
     if current_user.role != UserRole.USER:
+        logger.warning("User %s with role %s attempted to create booking", current_user.id, current_user.role)
         raise HTTPException(status_code=403, detail="Only users can book events")
 
     event = await crud_event.get(db=db, id=booking_in.event_id)
     if not event:
+        logger.warning("Event %s not found for booking", booking_in.event_id)
         raise HTTPException(status_code=404, detail="Event not found")
     if event.capacity < booking_in.tickets_count:
+        logger.warning(
+            "Insufficient capacity for event %s: requested %d, available %d",
+            booking_in.event_id,
+            booking_in.tickets_count,
+            event.capacity,
+        )
         raise HTTPException(status_code=400, detail="Not enough tickets available")
-    
+
+    logger.info(
+        "Creating booking for user %s on event %s with %d tickets",
+        current_user.id,
+        booking_in.event_id,
+        booking_in.tickets_count,
+    )
     # Extract data before commit (which expires objects)
     event_title = event.title
     event_date = event.date
@@ -62,6 +82,7 @@ async def create_booking(
     booking = await crud_booking.create_with_user(
         db=db, obj_in=booking_in, user_id=current_user.id
     )
+    logger.info("Booking %s created for user %s", booking.id, current_user.id)
     
     # Save data before commit (which expires objects)
     booking_id = booking.id
@@ -100,15 +121,20 @@ async def create_booking(
     """
     # We run this in the background using Celery
     try:
-        print(f"DEBUG EMAIL CONTENT:\n{email_content}")
+        logger.debug("Email content for booking %s: %s", booking_id, email_content)
         send_email_task.delay(
             email_to=[user_email],
             subject=email_subject,
             html_content=email_content
         )
-        print(f"INFO: Email confirmation queued for {user_email} for event '{event_title}'")
+        logger.info(
+            "Email confirmation queued for booking %s to %s for event '%s'",
+            booking_id,
+            user_email,
+            event_title,
+        )
     except Exception as e:
-        print(f"Failed to queue email: {e}")
+        logger.exception("Failed to queue email for booking %s: %s", booking_id, e)
 
     return {
         "id": booking_id,
@@ -132,13 +158,24 @@ async def update_booking(
     """
     Update a booking.
     """
+    if current_user.role != UserRole.USER:
+        logger.warning("User %s with role %s attempted to update booking", current_user.id, current_user.role)
+        raise HTTPException(status_code=403, detail="Only users can update bookings")
     booking = await crud_booking.get(db=db, id=id)
     if not booking:
+        logger.warning("Booking %s not found for update", id)
         raise HTTPException(status_code=404, detail="Booking not found")
     if booking.user_id != current_user.id:
+        logger.warning(
+            "User %s attempted to update booking %s owned by %s",
+            current_user.id,
+            id,
+            booking.user_id,
+        )
         raise HTTPException(status_code=403, detail="Not enough permissions")
-    
+
     booking = await crud_booking.update(db=db, db_obj=booking, obj_in=booking_in)
+    logger.info("Booking %s updated by user %s", id, current_user.id)
     return booking
 
 @router.delete("/{id}", response_model=Booking)
@@ -151,10 +188,21 @@ async def cancel_booking(
     """
     Cancel a booking.
     """
+    if current_user.role != UserRole.USER:
+        logger.warning("User %s with role %s attempted to cancel booking", current_user.id, current_user.role)
+        raise HTTPException(status_code=403, detail="Only users can cancel bookings")
     booking = await crud_booking.get(db=db, id=id)
     if not booking:
+        logger.warning("Booking %s not found for cancellation", id)
         raise HTTPException(status_code=404, detail="Booking not found")
     if booking.user_id != current_user.id:
+        logger.warning(
+            "User %s attempted to cancel booking %s owned by %s",
+            current_user.id,
+            id,
+            booking.user_id,
+        )
         raise HTTPException(status_code=403, detail="Not enough permissions")
     booking = await crud_booking.remove(db=db, id=id)
+    logger.info("Booking %s cancelled by user %s", id, current_user.id)
     return booking

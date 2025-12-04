@@ -24,4 +24,4 @@ app.include_router(api_router, prefix=settings.API_V1_STR)
 @app.get("/")
 async def root():
     logger.info("Root endpoint called")
-    return {"message": "Welcome to Event Booking API"}
+    return {"message": "Welcome to Event Booking"}
