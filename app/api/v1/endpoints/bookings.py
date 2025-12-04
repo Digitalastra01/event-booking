@@ -9,7 +9,7 @@ from app.crud import booking as crud_booking
 from app.crud import event as crud_event
 from app.schemas.booking import Booking, BookingCreate, BookingUpdate
 from app.models.user import User, UserRole
-from app.worker import send_email_task
+from app.services.booking_notifications import queue_booking_confirmation
 from app.utils.logger import get_logger
 
 router = APIRouter()
@@ -83,7 +83,7 @@ async def create_booking(
         db=db, obj_in=booking_in, user_id=current_user.id
     )
     logger.info("Booking %s created for user %s", booking.id, current_user.id)
-    
+
     # Save data before commit (which expires objects)
     booking_id = booking.id
     booking_user_id = booking.user_id
@@ -93,7 +93,7 @@ async def create_booking(
     booking_guest_name = booking.guest_name
     booking_guest_email = booking.guest_email
     booking_created_at = booking.created_at
-    
+
     # Decrease event capacity
     await db.execute(
         update(crud_event.model)
@@ -102,39 +102,17 @@ async def create_booking(
     )
     await db.commit()
 
-    # Send confirmation email
-    email_subject = f"Booking Confirmation: {event_title} (Updated)"
-    email_content = f"""
-    <html>
-        <body>
-            <h1>Booking Confirmation</h1>
-            <p>Hi {user_name},</p>
-            <p>You have successfully booked the event: <strong>{event_title}</strong>.</p>
-            <p><strong>Email:</strong> {user_email}</p>
-            <p><strong>Tickets:</strong> {tickets_count}</p>
-            <p><strong>Date:</strong> {event_date}</p>
-            <p><strong>Location:</strong> {event_location}</p>
-            <p><strong>Description:</strong> {event_description}</p>
-            <p>Thank you for using our service!</p>
-        </body>
-    </html>
-    """
-    # We run this in the background using Celery
-    try:
-        logger.debug("Email content for booking %s: %s", booking_id, email_content)
-        send_email_task.delay(
-            email_to=[user_email],
-            subject=email_subject,
-            html_content=email_content
-        )
-        logger.info(
-            "Email confirmation queued for booking %s to %s for event '%s'",
-            booking_id,
-            user_email,
-            event_title,
-        )
-    except Exception as e:
-        logger.exception("Failed to queue email for booking %s: %s", booking_id, e)
+    # Send confirmation email via service
+    queue_booking_confirmation(
+        booking_id=booking_id,
+        user_email=user_email,
+        user_name=user_name,
+        event_title=event_title,
+        event_date=event_date,
+        event_location=event_location,
+        event_description=event_description,
+        tickets_count=tickets_count,
+    )
 
     return {
         "id": booking_id,
