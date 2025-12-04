@@ -44,3 +44,7 @@ check_event.py
 verify_booking_flow.py
 verify_email.py
 verify_*.py
+
+
+tests/
+
