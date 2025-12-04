@@ -60,7 +60,7 @@ A robust FastAPI-based event booking system with Celery for background email pro
 ## Usage
 
 -   **Create an account** (`/api/v1/auth/signup`): set `is_organizer` to `true` for organizer access.
--   **Obtain a token** (`/api/v1/auth/login`): use the returned bearer token in subsequent requests.
+-   **Obtain a token** (`/api/v1/auth/login`): POST a JSON body with `email` and `password`; use the returned bearer token in subsequent requests.
 -   **List events** (`/api/v1/events/all`): organizers and users can fetch full event listings.
 -   **Manage events** (`/api/v1/events/{id}`): organizers create, update, delete events; authorization enforced.
 -   **Manage bookings** (`/api/v1/bookings/`): users can create, view, update, and cancel their bookings.

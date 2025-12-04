@@ -12,6 +12,11 @@ class UserCreate(UserBase):
     password: str
     is_organizer: bool = False
 
+
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
+
 class UserUpdate(BaseModel):
     email: Optional[EmailStr] = None
     name: Optional[str] = None

@@ -1,7 +1,6 @@
 from datetime import timedelta
 from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api import deps
@@ -9,7 +8,7 @@ from app.core import security
 from app.core.config import settings
 from app.crud import user as crud_user
 from app.schemas.token import Token
-from app.schemas.user import User, UserCreate
+from app.schemas.user import User, UserCreate, UserLogin
 from app.utils.logger import get_logger
 
 router = APIRouter()
@@ -39,21 +38,22 @@ async def create_user(
 
 @router.post("/login", response_model=Token)
 async def login_access_token(
+    *,
     db: AsyncSession = Depends(deps.get_db),
-    form_data: OAuth2PasswordRequestForm = Depends()
+    credentials: UserLogin,
 ) -> Any:
     """
     OAuth2 compatible token login, get an access token for future requests.
     """
-    logger.info("Login attempt for email %s", form_data.username)
+    logger.info("Login attempt for email %s", credentials.email)
     user = await crud_user.authenticate(
-        db, email=form_data.username, password=form_data.password
+        db, email=credentials.email, password=credentials.password
     )
     if not user:
-        logger.warning("Login failed for email %s: invalid credentials", form_data.username)
+        logger.warning("Login failed for email %s: invalid credentials", credentials.email)
         raise HTTPException(status_code=400, detail="Incorrect email or password")
     elif not user.is_active:
-        logger.warning("Login failed for email %s: inactive user", form_data.username)
+        logger.warning("Login failed for email %s: inactive user", credentials.email)
         raise HTTPException(status_code=400, detail="Inactive user")
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     logger.info("Login successful for user %s", user.id)
