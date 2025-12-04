@@ -14,6 +14,9 @@ class BookingCreate(BookingBase):
 
 class BookingUpdate(BaseModel):
     status: Optional[BookingStatus] = None
+    tickets_count: Optional[int] = None
+    guest_name: Optional[str] = None
+    guest_email: Optional[EmailStr] = None
 
 class BookingInDBBase(BookingBase):
     id: uuid.UUID

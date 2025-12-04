@@ -152,6 +152,34 @@ async def update_booking(
         )
         raise HTTPException(status_code=403, detail="Not enough permissions")
 
+    update_data = booking_in.model_dump(exclude_unset=True)
+
+    if "tickets_count" in update_data:
+        new_tickets_count = update_data["tickets_count"]
+        if new_tickets_count is None or new_tickets_count <= 0:
+            logger.warning("Invalid tickets count %s for booking %s", new_tickets_count, id)
+            raise HTTPException(status_code=400, detail="Tickets count must be greater than zero")
+
+        ticket_diff = new_tickets_count - booking.tickets_count
+        if ticket_diff != 0:
+            event = await crud_event.get(db=db, id=booking.event_id)
+            if not event:
+                logger.error("Event %s not found while updating booking %s", booking.event_id, id)
+                raise HTTPException(status_code=500, detail="Related event not found")
+            if ticket_diff > 0 and event.capacity < ticket_diff:
+                logger.warning(
+                    "Insufficient capacity for event %s: requested change %d, available %d",
+                    booking.event_id,
+                    ticket_diff,
+                    event.capacity,
+                )
+                raise HTTPException(status_code=400, detail="Not enough tickets available")
+            await db.execute(
+                update(crud_event.model)
+                .where(crud_event.model.id == booking.event_id)
+                .values(capacity=crud_event.model.capacity - ticket_diff)
+            )
+
     booking = await crud_booking.update(db=db, db_obj=booking, obj_in=booking_in)
     logger.info("Booking %s updated by user %s", id, current_user.id)
     return booking
