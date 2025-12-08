@@ -46,8 +46,6 @@ verify_email.py
 verify_*.py
 
 
-tests/
-pytest.ini
 .python-version
 alembic.ini
 

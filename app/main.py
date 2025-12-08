@@ -6,6 +6,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from app.api.v1.api import api_router
 from app.core.config import settings
 from app.core.ratelimit import limiter
+from app.core.middleware import LoggingMiddleware
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -18,6 +19,7 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(SlowAPIMiddleware)
+app.add_middleware(LoggingMiddleware)
 
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
